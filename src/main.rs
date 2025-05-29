@@ -3,10 +3,7 @@ use std::io;
 
 fn main() {
     let member_data: String = readfile().expect("failed to read file");
-    let member_list: Vec<&str> = member_data
-                                    .split(',')
-                                    .map(|name| name.trim())
-                                    .collect();
+    let member_list: Vec<&str> = member_data.split(',').map(|name| name.trim()).collect();
 
     //基本的な数値の取得（チームの数、チーム員数、タスク数）
     let num_of_team = info_init_team();
@@ -29,7 +26,7 @@ fn main() {
 }
 
 fn readfile() -> io::Result<String> {
-    let file_path = "/home/junhyung-yi/file/pr_rust/teamgenerator/src/team_member.txt";
+    let file_path = "./sample.txt";
     let contents = fs::read_to_string(file_path)?;
 
     Ok(contents)
@@ -114,7 +111,6 @@ fn remove_value(vec: &mut Vec<u32>, value_to_remove: &u32) {
     vec.retain(|element| element != value_to_remove);
 }
 
-
 fn cal_alg(
     num_of_team: u32,
     member_per_team: &Vec<u32>,
@@ -179,9 +175,9 @@ fn cal_alg(
 
         //ラウンド結果出力
         println!("\n ラウンド {} 全体状況", i + 1);
-            for zentai in 0..table_of_member.len() {
-                println!("{:?}", table_of_member[zentai]);
-    }
+        for zentai in 0..table_of_member.len() {
+            println!("{:?}", table_of_member[zentai]);
+        }
     }
 
     println!("最終結果");
@@ -189,8 +185,6 @@ fn cal_alg(
     for zentai in 0..table_of_member.len() {
         println!("{:?}", table_of_member[zentai]);
     }
-
-    
 }
 
 //チームの数分、会った回数が少ない人を選び、その結果を返す（ベクトルで）
@@ -218,7 +212,6 @@ fn select_min_member(table_of_member: &Vec<Vec<u32>>, num_of_team: u32) -> Vec<u
     leader_selected
 }
 
-
 fn select_best_member(
     status_of_team: &mut Vec<u32>,
     available_members: &mut Vec<u32>,
@@ -229,11 +222,9 @@ fn select_best_member(
     loop {
         // メンバーがない時は終了
         if status_of_team.len() >= (member_per_team[team_number as usize] as usize) {
-            
             break;
         }
         if available_members.is_empty() {
-
             break;
         }
 
@@ -269,7 +260,6 @@ fn select_best_member(
             let chosen_member_id = best_candidate_tuple.1;
             status_of_team.push(chosen_member_id);
             remove_value(available_members, &chosen_member_id);
-
         } else {
             break;
         }
