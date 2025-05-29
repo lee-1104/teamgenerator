@@ -228,36 +228,47 @@ fn select_best_member(
             break;
         }
 
-        let mut score_list: Vec<(u32, u32)> = Vec::new(); // (会った回数の合計, メンバーID)
-
+        let mut score_list: Vec<(u32, u32, u32)> = Vec::new(); // (優先順位,会った回数の合計, メンバーID)
         for &candidate_member_id in available_members.iter() {
-            let mut current_sum_of_meetings: u32 = 0;
+            let mut sum_of_meetings_with_current_team: u32 = 0;
+            let mut has_met_anyone_in_current_team = false;
+
             for &member_in_current_team_id in status_of_team.iter() {
-                // table_of_member 有効性評価
+                // 有効性チェック
                 if (candidate_member_id as usize) < table_of_member.len()
-                    && (member_in_current_team_id as usize) < table_of_member.len()
                     && (member_in_current_team_id as usize)
                         < table_of_member[candidate_member_id as usize].len()
-                    && (candidate_member_id as usize)
-                        < table_of_member[member_in_current_team_id as usize].len()
                 {
-                    current_sum_of_meetings += table_of_member[candidate_member_id as usize]
+                    let meetings = table_of_member[candidate_member_id as usize]
                         [member_in_current_team_id as usize];
+                    if meetings > 0 {
+                        has_met_anyone_in_current_team = true;
+                    }
+                    sum_of_meetings_with_current_team += meetings;
                 }
             }
-            score_list.push((current_sum_of_meetings.pow(2), candidate_member_id));
+
+            //優先順位付与
+            let priority_score = if has_met_anyone_in_current_team { 1 } else { 0 };
+
+            score_list.push((
+                priority_score,
+                sum_of_meetings_with_current_team.pow(2),
+                candidate_member_id,
+            ));
         }
 
         if score_list.is_empty() {
             break;
         }
 
+        // min_by_keyで整列
         let best_candidate_tuple_option = score_list
             .iter()
-            .min_by_key(|(current_score, _member_id)| current_score);
+            .min_by_key(|&(priority, squared_sum, _member_id)| (priority, squared_sum));
 
         if let Some(&best_candidate_tuple) = best_candidate_tuple_option {
-            let chosen_member_id = best_candidate_tuple.1;
+            let chosen_member_id = best_candidate_tuple.2;
             status_of_team.push(chosen_member_id);
             remove_value(available_members, &chosen_member_id);
         } else {
