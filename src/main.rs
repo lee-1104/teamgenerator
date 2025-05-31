@@ -1,3 +1,5 @@
+use rand::seq::SliceRandom;
+use rand::thread_rng;
 use std::fs;
 use std::io;
 
@@ -116,72 +118,128 @@ fn cal_alg(
     member_per_team: &Vec<u32>,
     num_of_task_runs: u32,
     member_list: &Vec<&str>,
-    table_of_member: &mut Vec<Vec<u32>>,
+    table_of_member: &mut Vec<Vec<u32>>, // 최종 누적 만남 횟수 테이블
 ) {
-    //関数が呼ばれた時に、全体の会った回数を初期化する
+    let num_iterations_per_round = 10000; // 라운드당 시도 횟수 (예: 30번)
 
-    //ここからラウンドごとに実行し、チームを決める
     for i in 0..num_of_task_runs {
-        //ラウンド設定。
-        let mut available_members: Vec<u32> = (0..member_list.len() as u32).collect();
+        println!("\n--- ラウンド {} シミュレーション ---", i + 1);
 
-        //ラウンド用のチーム枠生成
-        let mut table_of_team_round: Vec<Vec<u32>> = Vec::with_capacity(num_of_team as usize);
-        for k in 0..num_of_team as usize {
-            let inner_team_vec: Vec<u32> = Vec::with_capacity(member_per_team[k] as usize);
-            table_of_team_round.push(inner_team_vec);
-        }
+        let mut best_round_teams: Option<Vec<Vec<u32>>> = None;
+        let mut best_round_fitness = (0, f64::MAX); // 低いほど良いと判断
 
-        //ここでチーム長を決める。select_min_member関数を呼び出しする
-        let leader_of_team: Vec<u32> = select_min_member(&table_of_member, num_of_team);
+        // ラウンドの基準 table_of_member スナップショット 
+        let table_of_member_snapshot_for_round = table_of_member.clone();
 
-        //各チームにリーダーを割り当てる
-        for l in 0..num_of_team as usize {
-            remove_value(&mut available_members, &leader_of_team[l]);
-            table_of_team_round[l].push(leader_of_team[l]);
-        }
+        for _iteration in 0..num_iterations_per_round {
+            // 1. available_members 生成
+            let mut available_members: Vec<u32> = (0..member_list.len() as u32).collect();
+            let mut rng = thread_rng();
+            available_members.shuffle(&mut rng);
 
-        for j in 0..num_of_team as usize {
-            //チーム単位で実行
-            select_best_member(
-                &mut table_of_team_round[j],
-                &mut available_members,
-                j as u32,
-                &member_per_team,
-                &table_of_member,
+            // 2. 臨時テーブル生成
+            let mut current_iteration_round_teams: Vec<Vec<u32>> =
+                Vec::with_capacity(num_of_team as usize);
+            for k in 0..num_of_team as usize {
+                current_iteration_round_teams.push(Vec::with_capacity(member_per_team[k] as usize));
+            }
+
+            // 臨時 available_members 
+            let mut temp_available_members = available_members.clone();
+
+            // 3. リーダー選択
+            let leader_of_team: Vec<u32> =
+                select_min_member(&table_of_member_snapshot_for_round, num_of_team);
+
+            let mut possible_to_assign_leaders = true;
+            for l_idx in 0..num_of_team as usize {
+                // リーターを temp_available_membersにいるか確認後、削除
+                if let Some(pos) = temp_available_members
+                    .iter()
+                    .position(|&x| x == leader_of_team[l_idx])
+                {
+                    let leader_id = temp_available_members.remove(pos);
+                    current_iteration_round_teams[l_idx].push(leader_id);
+                } else {
+                    possible_to_assign_leaders = false;
+                    break;
+                }
+            }
+            if !possible_to_assign_leaders {
+                continue; 
+            }
+
+            // 4. select_best_member
+            for j in 0..num_of_team as usize {
+                // select_best_memberは table_of_member_snapshot_for_round スナップショットで評価
+                select_best_member(
+                    &mut current_iteration_round_teams[j],
+                    &mut temp_available_members, 
+                    j as u32,
+                    &member_per_team,
+                    &table_of_member_snapshot_for_round, 
+                );
+            }
+
+
+            // 5. 評価パート
+            let current_fitness = calculate_round_fitness(
+                &current_iteration_round_teams,
+                &table_of_member_snapshot_for_round,
             );
-        }
-        println!("\n--- ラウンド {} 結果 ---", i + 1);
-        for (team_idx, team) in table_of_team_round.iter().enumerate() {
-            let team_names: Vec<String> = team
-                .iter()
-                .map(|&member_id| member_list[member_id as usize].to_string())
-                .collect();
-            println!("チーム {}: {:?}", team_idx + 1, team_names);
 
-            // table_of_member 업데이트
-            for member1_pos in 0..team.len() {
-                for member2_pos in (member1_pos + 1)..team.len() {
-                    let id1 = team[member1_pos] as usize;
-                    let id2 = team[member2_pos] as usize;
-                    if id1 < table_of_member.len() && id2 < table_of_member[id1].len() {
-                        // インデックス確認
-                        table_of_member[id1][id2] += 1;
-                        table_of_member[id2][id1] += 1; // 会った回数反映
+            if current_fitness.0 < best_round_fitness.0
+                || (current_fitness.0 == best_round_fitness.0
+                    && current_fitness.1 < best_round_fitness.1)
+            {
+                best_round_fitness = current_fitness;
+                best_round_teams = Some(current_iteration_round_teams);
+            }
+        } 
+
+        // 6. 最善の結果を table_of_memberに反映
+        if let Some(final_round_teams) = best_round_teams {
+            println!(
+                "\n--- ラウンド {} 結果 (新しい組: {}, 標準偏差: {:.4}) ---", 
+                i + 1,
+                -best_round_fitness.0,
+                best_round_fitness.1  
+            );
+            for (team_idx, team) in final_round_teams.iter().enumerate() {
+                let team_names: Vec<String> = team
+                    .iter()
+                    .map(|&member_id| member_list[member_id as usize].to_string())
+                    .collect();
+                println!("チーム {}: {:?}", team_idx + 1, team_names);
+
+                //  table_of_member アップデート
+                for member1_pos in 0..team.len() {
+                    for member2_pos in (member1_pos + 1)..team.len() {
+                        let id1 = team[member1_pos] as usize;
+                        let id2 = team[member2_pos] as usize;
+                        if id1 < table_of_member.len() && id2 < table_of_member[id1].len() {
+                            table_of_member[id1][id2] += 1;
+                            table_of_member[id2][id1] += 1;
+                        }
                     }
                 }
             }
+        } else {
+            println!(
+                "\n--- ラウンド {} でエラー発生 ---",
+                i + 1
+            );
+
         }
 
-        //ラウンド結果出力
-        println!("\n ラウンド {} 全体状況", i + 1);
+
+        println!("\n ラウンド {} 後 全体の状況", i + 1);
         for zentai in 0..table_of_member.len() {
             println!("{:?}", table_of_member[zentai]);
         }
-    }
+    } // End of task runs (rounds)
 
     println!("最終結果");
-    //全体の結果出力
     for zentai in 0..table_of_member.len() {
         println!("{:?}", table_of_member[zentai]);
     }
@@ -275,4 +333,56 @@ fn select_best_member(
             break;
         }
     }
+}
+
+fn calculate_round_fitness(
+    round_teams: &Vec<Vec<u32>>,
+    table_of_member_snapshot: &Vec<Vec<u32>>,
+) -> (i32, f64) {
+    // (음수 처리된 새로운 만남 수, 표준편차)
+    let mut temp_table = table_of_member_snapshot.clone();
+    let mut new_encounters_count = 0;
+
+    for team in round_teams.iter() {
+        for m1_idx in 0..team.len() {
+            for m2_idx in (m1_idx + 1)..team.len() {
+                let id1 = team[m1_idx] as usize;
+                let id2 = team[m2_idx] as usize;
+
+                if id1 < temp_table.len() && id2 < temp_table[id1].len() {
+                    // 새로운 만남인지 확인
+                    if table_of_member_snapshot[id1][id2] == 0 {
+                        new_encounters_count += 1;
+                    }
+                    temp_table[id1][id2] += 1;
+                    temp_table[id2][id1] += 1;
+                }
+            }
+        }
+    }
+
+    let mut all_meeting_counts: Vec<u32> = Vec::new();
+    for r in 0..temp_table.len() {
+        for c in (r + 1)..temp_table[r].len() {
+            all_meeting_counts.push(temp_table[r][c]);
+        }
+    }
+
+    if all_meeting_counts.is_empty() {
+        return (0, f64::MAX); // 새로운 만남 0, 표준편차 최대
+    }
+
+    let sum: u32 = all_meeting_counts.iter().sum();
+    let mean = sum as f64 / all_meeting_counts.len() as f64;
+    let variance = all_meeting_counts
+        .iter()
+        .map(|value| {
+            let diff = mean - (*value as f64);
+            diff * diff
+        })
+        .sum::<f64>()
+        / all_meeting_counts.len() as f64;
+
+    // 새로운 만남 수는 많을수록 좋으므로, 음수로 변환하여 작은 값이 되도록 함
+    (-new_encounters_count, variance.sqrt())
 }
