@@ -118,9 +118,9 @@ fn cal_alg(
     member_per_team: &Vec<u32>,
     num_of_task_runs: u32,
     member_list: &Vec<&str>,
-    table_of_member: &mut Vec<Vec<u32>>, // 최종 누적 만남 횟수 테이블
+    table_of_member: &mut Vec<Vec<u32>>, 
 ) {
-    let num_iterations_per_round = 10000; // 라운드당 시도 횟수 (예: 30번)
+    let num_iterations_per_round = 10000; 
 
     for i in 0..num_of_task_runs {
         println!("\n--- ラウンド {} シミュレーション ---", i + 1);
@@ -339,7 +339,7 @@ fn calculate_round_fitness(
     round_teams: &Vec<Vec<u32>>,
     table_of_member_snapshot: &Vec<Vec<u32>>,
 ) -> (i32, f64) {
-    // (음수 처리된 새로운 만남 수, 표준편차)
+
     let mut temp_table = table_of_member_snapshot.clone();
     let mut new_encounters_count = 0;
 
@@ -350,7 +350,7 @@ fn calculate_round_fitness(
                 let id2 = team[m2_idx] as usize;
 
                 if id1 < temp_table.len() && id2 < temp_table[id1].len() {
-                    // 새로운 만남인지 확인
+
                     if table_of_member_snapshot[id1][id2] == 0 {
                         new_encounters_count += 1;
                     }
@@ -369,7 +369,7 @@ fn calculate_round_fitness(
     }
 
     if all_meeting_counts.is_empty() {
-        return (0, f64::MAX); // 새로운 만남 0, 표준편차 최대
+        return (0, f64::MAX); 
     }
 
     let sum: u32 = all_meeting_counts.iter().sum();
@@ -383,6 +383,6 @@ fn calculate_round_fitness(
         .sum::<f64>()
         / all_meeting_counts.len() as f64;
 
-    // 새로운 만남 수는 많을수록 좋으므로, 음수로 변환하여 작은 값이 되도록 함
+
     (-new_encounters_count, variance.sqrt())
 }
