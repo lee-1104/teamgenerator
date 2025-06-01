@@ -232,11 +232,14 @@ fn cal_alg(
             println!("{:?}", table_of_member[zentai]);
         }
     } // End of task runs (rounds)
-
+    let unmet_pairs = (count_zeros(table_of_member) - table_of_member.len())/2;
     println!("最終結果");
+
     for zentai in 0..table_of_member.len() {
         println!("{:?}", table_of_member[zentai]);
     }
+
+    println!("未接触のペアの数：{}",unmet_pairs);
 }
 
 //チームの数分、会った回数が少ない人を選び、その結果を返す（ベクトルで）
@@ -386,4 +389,12 @@ fn calculate_round_fitness(
         / all_meeting_counts.len() as f64;
 
     (-new_encounters_count, variance.sqrt()) // 新しい組と標準偏差を返す
+}
+
+fn count_zeros(matrix: &Vec<Vec<u32>>) -> usize {
+    matrix
+        .iter() 
+        .flat_map(|inner_vec| inner_vec.iter()) 
+        .filter(|&&item| item == 0) 
+        .count() 
 }
