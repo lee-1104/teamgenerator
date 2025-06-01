@@ -232,14 +232,18 @@ fn cal_alg(
             println!("{:?}", table_of_member[zentai]);
         }
     } // End of task runs (rounds)
-    let unmet_pairs = (count_zeros(table_of_member) - table_of_member.len())/2;
+    let unmet_pairs = (count_zeros(table_of_member) - table_of_member.len()) / 2;
+    let member_ratio: f64 = ((table_of_member.len() as f64 / num_of_team as f64) - 1.0)
+        * num_of_task_runs as f64
+        / (table_of_member.len() as f64 - 1.0);
     println!("最終結果");
 
     for zentai in 0..table_of_member.len() {
         println!("{:?}", table_of_member[zentai]);
     }
 
-    println!("未接触のペアの数：{}",unmet_pairs);
+    println!("未接触のペアの数：{}", unmet_pairs);
+    println!("倍率：{:.3}", member_ratio);
 }
 
 //チームの数分、会った回数が少ない人を選び、その結果を返す（ベクトルで）
@@ -273,8 +277,6 @@ fn select_min_member(table_of_member: &Vec<Vec<u32>>, num_of_team: u32) -> Vec<u
 
         leader_selected
     }
-
-
 }
 
 fn select_best_member(
@@ -393,8 +395,8 @@ fn calculate_round_fitness(
 
 fn count_zeros(matrix: &Vec<Vec<u32>>) -> usize {
     matrix
-        .iter() 
-        .flat_map(|inner_vec| inner_vec.iter()) 
-        .filter(|&&item| item == 0) 
-        .count() 
+        .iter()
+        .flat_map(|inner_vec| inner_vec.iter())
+        .filter(|&&item| item == 0)
+        .count()
 }
