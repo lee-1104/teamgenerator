@@ -118,9 +118,9 @@ fn cal_alg(
     member_per_team: &Vec<u32>,
     num_of_task_runs: u32,
     member_list: &Vec<&str>,
-    table_of_member: &mut Vec<Vec<u32>>, 
+    table_of_member: &mut Vec<Vec<u32>>,
 ) {
-    let num_iterations_per_round = 10000; 
+    let num_iterations_per_round = 10000;
 
     for i in 0..num_of_task_runs {
         println!("\n--- ラウンド {} シミュレーション ---", i + 1);
@@ -128,7 +128,7 @@ fn cal_alg(
         let mut best_round_teams: Option<Vec<Vec<u32>>> = None;
         let mut best_round_fitness = (0, f64::MAX); // 低いほど良いと判断
 
-        // ラウンドの基準 table_of_member スナップショット 
+        // ラウンドの基準 table_of_member スナップショット
         let table_of_member_snapshot_for_round = table_of_member.clone();
 
         for _iteration in 0..num_iterations_per_round {
@@ -144,7 +144,7 @@ fn cal_alg(
                 current_iteration_round_teams.push(Vec::with_capacity(member_per_team[k] as usize));
             }
 
-            // 臨時 available_members 
+            // 臨時 available_members
             let mut temp_available_members = available_members.clone();
 
             // 3. リーダー選択
@@ -166,7 +166,7 @@ fn cal_alg(
                 }
             }
             if !possible_to_assign_leaders {
-                continue; 
+                continue;
             }
 
             // 4. select_best_member
@@ -174,13 +174,12 @@ fn cal_alg(
                 // select_best_memberは table_of_member_snapshot_for_round スナップショットで評価
                 select_best_member(
                     &mut current_iteration_round_teams[j],
-                    &mut temp_available_members, 
+                    &mut temp_available_members,
                     j as u32,
                     &member_per_team,
-                    &table_of_member_snapshot_for_round, 
+                    &table_of_member_snapshot_for_round,
                 );
             }
-
 
             // 5. 評価パート
             let current_fitness = calculate_round_fitness(
@@ -195,15 +194,15 @@ fn cal_alg(
                 best_round_fitness = current_fitness;
                 best_round_teams = Some(current_iteration_round_teams);
             }
-        } 
+        }
 
         // 6. 最善の結果を table_of_memberに反映
         if let Some(final_round_teams) = best_round_teams {
             println!(
-                "\n--- ラウンド {} 結果 (新しい組: {}, 標準偏差: {:.4}) ---", 
+                "\n--- ラウンド {} 結果 (新しい組: {}, 標準偏差: {:.4}) ---",
                 i + 1,
                 -best_round_fitness.0,
-                best_round_fitness.1  
+                best_round_fitness.1
             );
             for (team_idx, team) in final_round_teams.iter().enumerate() {
                 let team_names: Vec<String> = team
@@ -225,13 +224,8 @@ fn cal_alg(
                 }
             }
         } else {
-            println!(
-                "\n--- ラウンド {} でエラー発生 ---",
-                i + 1
-            );
-
+            println!("\n--- ラウンド {} でエラー発生 ---", i + 1);
         }
-
 
         println!("\n ラウンド {} 後 全体の状況", i + 1);
         for zentai in 0..table_of_member.len() {
@@ -247,27 +241,37 @@ fn cal_alg(
 
 //チームの数分、会った回数が少ない人を選び、その結果を返す（ベクトルで）
 fn select_min_member(table_of_member: &Vec<Vec<u32>>, num_of_team: u32) -> Vec<u32> {
-    //総会った回数のベクトルを生成
-    let sum_of_meet: Vec<u32> = table_of_member
-        .iter()
-        .map(|inner_vec| inner_vec.iter().sum())
-        .collect();
-    //ベクトルを整列し、会った回数が少ない人のインデックスを返す。
-    let mut indexed_sums: Vec<(usize, u32)> = sum_of_meet
-        .iter()
-        .enumerate()
-        .map(|(index, &sum_val)| (index, sum_val))
-        .collect();
-    //整列
-    indexed_sums.sort_by_key(|&(_index, sum_val)| sum_val);
+    if table_of_member.len() % num_of_team as usize != 0 {
+        //総会った回数のベクトルを生成
+        let sum_of_meet: Vec<u32> = table_of_member
+            .iter()
+            .map(|inner_vec| inner_vec.iter().sum())
+            .collect();
+        //ベクトルを整列し、会った回数が少ない人のインデックスを返す。
+        let mut indexed_sums: Vec<(usize, u32)> = sum_of_meet
+            .iter()
+            .enumerate()
+            .map(|(index, &sum_val)| (index, sum_val))
+            .collect();
+        //整列
+        indexed_sums.sort_by_key(|&(_index, sum_val)| sum_val);
 
-    let leader_selected: Vec<u32> = indexed_sums
-        .iter()
-        .take(num_of_team as usize)
-        .map(|&(index, _sum_val)| index as u32)
-        .collect();
+        let leader_selected: Vec<u32> = indexed_sums
+            .iter()
+            .take(num_of_team as usize)
+            .map(|&(index, _sum_val)| index as u32)
+            .collect();
 
-    leader_selected
+        leader_selected
+    } else {
+        let mut leader_selected: Vec<u32> = (0..table_of_member.len() as u32).collect();
+        let mut rng = thread_rng();
+        leader_selected.shuffle(&mut rng);
+
+        leader_selected
+    }
+
+
 }
 
 fn select_best_member(
@@ -339,7 +343,6 @@ fn calculate_round_fitness(
     round_teams: &Vec<Vec<u32>>,
     table_of_member_snapshot: &Vec<Vec<u32>>,
 ) -> (i32, f64) {
-
     let mut temp_table = table_of_member_snapshot.clone();
     let mut new_encounters_count = 0;
 
@@ -350,7 +353,6 @@ fn calculate_round_fitness(
                 let id2 = team[m2_idx] as usize;
 
                 if id1 < temp_table.len() && id2 < temp_table[id1].len() {
-
                     if table_of_member_snapshot[id1][id2] == 0 {
                         new_encounters_count += 1;
                     }
@@ -369,7 +371,7 @@ fn calculate_round_fitness(
     }
 
     if all_meeting_counts.is_empty() {
-        return (0, f64::MAX); 
+        return (0, f64::MAX);
     }
 
     let sum: u32 = all_meeting_counts.iter().sum();
@@ -383,6 +385,5 @@ fn calculate_round_fitness(
         .sum::<f64>()
         / all_meeting_counts.len() as f64;
 
-
-    (-new_encounters_count, variance.sqrt())
+    (-new_encounters_count, variance.sqrt()) // 新しい組と標準偏差を返す
 }
