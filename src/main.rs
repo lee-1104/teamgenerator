@@ -8,6 +8,13 @@ fn main() {
     let member_list: Vec<&str> = member_data.split(',').map(|name| name.trim()).collect();
 
     //基本的な数値の取得（チームの数、チーム員数、タスク数）
+    // comment:
+    // ここでやってることはコアロジックを動かすために必要な値をユーザー入力を介して受け取ることなので、
+    // "init" という語彙はおそらく本来やりたいことを反映した語彙になってない可能性がある。
+    // 値を stdin から供給することが当面確定しているのなら、そこは決め打ちで stdin をハードコードした関数として決め打ちしちゃって良い気がする
+    // これらの関数名は "info_init_xxx" という規則になっている。
+    // この語順だと、読み手としては "Show information about initialized XXX" みたいなニュアンスの関数かな？と想像する。
+    // 多分そういう意図で書いてる機能じゃないだろうから、語順や語彙の選択はもうちょい実際の意図に近づけた表現を推敲できそうな気はする。
     let num_of_team = info_init_team();
     let num_of_task_runs = info_init_task();
     let member_per_team = gen_team(member_list.len() as u32, num_of_team);
