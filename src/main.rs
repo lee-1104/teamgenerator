@@ -1,11 +1,17 @@
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::fs;
-use std::io;
+use std::io::{self, Read, BufReader, BufRead};
+
+/// Note: この定義だとこのモジュール内に公開される設定になるが、同一クレート内の別モジュールに分割するのなら `pub(crate)` と書く。
+const DEFAULT_MEMBERS_FILE_PATH: &str = "./sample.txt";
 
 fn main() {
-    let member_data: String = readfile().expect("failed to read file");
-    let member_list: Vec<&str> = member_data.split(',').map(|name| name.trim()).collect();
+    // 「特定の」「ファイル」からメンバーを読み込む仕様はユースケースよりの都合なので、最も高位でユースケースを処理している（と扱う）main 関数内で明示的に扱うものとした。
+    // members を読み込んで Vec 型にデシリアライズする機能はストリームからデータを読む仕様にしたので、そこ (load_members の呼び出し時) に適合するデータを調達するまでの仕事は main 側で行うように整理した。
+    let file = fs::File::open(DEFAULT_MEMBERS_FILE_PATH).expect("failed to open members file");
+    let members: Vec<String> = load_members(BufReader::new(file))
+        .expect("failed to load members");
 
     //基本的な数値の取得（チームの数、チーム員数、タスク数）
     // comment:
@@ -17,21 +23,48 @@ fn main() {
     // 多分そういう意図で書いてる機能じゃないだろうから、語順や語彙の選択はもうちょい実際の意図に近づけた表現を推敲できそうな気はする。
     let num_of_team = info_init_team();
     let num_of_task_runs = info_init_task();
-    let member_per_team = gen_team(member_list.len() as u32, num_of_team);
-    let mut table_of_member: Vec<Vec<u32>> = vec![vec![0u32; member_list.len()]; member_list.len()];
+    let member_per_team = gen_team(members.len() as u32, num_of_team);
+    let mut table_of_member: Vec<Vec<u32>> = vec![vec![0u32; members.len()]; members.len()];
 
     println!("計算条件：");
     println!("チーム数は {} です", num_of_team);
     println!("課題数は {} です", num_of_task_runs);
-    println!("全体の人員数は {} です", member_list.len());
+    println!("全体の人員数は {} です", members.len());
 
     cal_alg(
         num_of_team,
         &member_per_team,
         num_of_task_runs,
-        &member_list,
+        // Vec<&str> に変換してポインタを渡す
+        &members.iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>(),
         &mut table_of_member,
     );
+}
+
+/// メンバーリストを Reader から読み込んで、最低限のバリデートを行って返す。
+/// ただし、現時点の実装は区切り文字（カンマと改行）以外の任意の文字列を許容する想定とし、エスケープも考慮しないものとする。
+/// （よって、クォーテーションで囲まれた文字列はそのまま解釈され、その文字列にカンマを含むメンバーは定義できない）
+/// 区切り文字前後の空白文字はトリムする。
+/// 意味的な解釈についてはこの関数の責務ではなく、データ構造として成立しているかどうかのチェックまでの責任を持つ。
+/// csv とか json とか、もっと複雑な構造にしたくなったらその読み込みロジックをここで変更しつつ、戻り値の型を変更することになる。
+/// 
+/// 「メンバーリスト」というデータ構造を読み込む際の、具体的な実装の詳細（ここでの実装の詳細とは、入力ソースがなんなのか？に該当）は、
+/// 「メンバーリスト」を扱う汎用ユーティリティ関数にとっては知る必要のないこと。そのため、load_members 関数のインタフェースや実装から「ファイル」や「パス」に関する知識は切り離されている。
+/// その結果として Read + BufRead のトレイト境界を満たす任意の型 R がパラメータとなっている。
+fn load_members<R: Read + BufRead>(reader: R) -> io::Result<Vec<String>> {
+    let mut members = Vec::new();
+    for line in reader.lines() {
+        let line = line?;
+        for member in line.split(',') {
+            let trimmed_member = member.trim().to_string();
+            if !trimmed_member.is_empty() {
+                members.push(trimmed_member);
+            }
+        }
+    }
+    Ok(members)
 }
 
 /// 「どこから読み込むのか？」の情報は本質的な機能の用事というよりも、ただの「値」として整理できるので、
@@ -44,12 +77,12 @@ fn main() {
 /// （現実装の語彙を借りるなら）"member" のような語彙がこの関数名に入ってくるはず。
 /// この関数を呼び出す側の制御で、そのデシリアライズされたデータ構造が意味的に正しいかのバリデーションも入ってきたりするのが
 /// （そこそこ複雑な構造を持つ config ファイルの扱いでは）割と一般的なパターンだと思う。
-fn readfile() -> io::Result<String> {
-    let file_path = "./sample.txt";
-    let contents = fs::read_to_string(file_path)?;
+// fn readfile() -> io::Result<String> {
+//     let file_path = "./sample.txt";
+//     let contents = fs::read_to_string(file_path)?;
 
-    Ok(contents)
-}
+//     Ok(contents)
+// }
 
 fn info_init_team() -> u32 {
     //チーム数の入力を受ける
@@ -134,7 +167,7 @@ fn cal_alg(
     num_of_team: u32,
     member_per_team: &Vec<u32>,
     num_of_task_runs: u32,
-    member_list: &Vec<&str>,
+    member_list: &[&str],
     table_of_member: &mut Vec<Vec<u32>>,
 ) {
     let num_iterations_per_round = 10000;
@@ -416,4 +449,20 @@ fn count_zeros(matrix: &Vec<Vec<u32>>) -> usize {
         .flat_map(|inner_vec| inner_vec.iter())
         .filter(|&&item| item == 0)
         .count()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_load_members() {
+        // 入力ソースを「ファイル」ではなくストリームとしたことで、テストコード側でのテストデータの調達が楽になっている。
+        // テスト専用の外部コンテンツ（ここではテキストファイル）が存在することを前提としなくて良くなっている点がここでのポイント。
+        // これは特に、「不正な値」のバリエーションがいくつもあり、それをすべてテストで潰していく場合を想定すると、実装の簡潔さに違いが出てくる。
+        let test_members_str = "Alice,Bob , Charlie\nDavid,Eve ,\tFrank\t\n";
+        let reader = test_members_str.as_bytes();
+        let members = load_members(reader).unwrap();
+        assert_eq!(members, vec!["Alice", "Bob", "Charlie", "David", "Eve", "Frank"]);
+    }
 }
